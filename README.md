@@ -51,7 +51,7 @@ import '@doeixd/scoped-focusgroup-polyfill';
 Include the script in your HTML file. It will install itself automatically.
 
 ```html
-<script src="https://unpkg.com/@doeixd/scoped-focusgroup-polyfill/dist/focusgroup.polyfill.min.js"></script>
+<script src="https://esm.sh/@doeixd/scoped-focusgroup-polyfill"></script>
 ```
 
 ### 2. Usage
