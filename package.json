@@ -10,6 +10,21 @@
   },
   "license": "MIT",
   "keywords": [
+    "focusgroup",
+    "polyfill",
+    "roving tabindex",
+    "focus management",
+    "keyboard navigation",
+    "accessibility",
+    "a11y",
+    "web components",
+    "open-ui",
+    "w3c",
+    "tablist",
+    "toolbar",
+    "menu",
+    "grid",
+    "shadow dom",
     "pridepack"
   ],
   "devDependencies": {
@@ -17,9 +32,11 @@
     "pridepack": "2.6.4",
     "tslib": "^2.8.1",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "standard-version": "^9.5.0"
   },
   "scripts": {
+    "release": "standard-version && git push --follow-tags origin main",
     "prepublishOnly": "pridepack clean && pridepack build",
     "build": "pridepack build",
     "type-check": "pridepack check",
@@ -30,14 +47,14 @@
     "test": "vitest"
   },
   "private": false,
-  "description": "Scoped focusgroup polyfill",
+  "description": "A complete and robust polyfill for the Scoped Focusgroup proposal, enabling declarative roving tabindex and accessible keyboard navigation.",
   "repository": {
-    "url": "",
+    "url": "https://github.com/doeixd/scoped-focusgroup-polyfill",
     "type": "git"
   },
-  "homepage": "",
+  "homepage": "https://github.com/doeixd/scoped-focusgroup-polyfill#README",
   "bugs": {
-    "url": ""
+    "url": "https://github.com/doeixd/scoped-focusgroup-polyfill/issues"
   },
   "author": "Patrick Glenn",
   "publishConfig": {
