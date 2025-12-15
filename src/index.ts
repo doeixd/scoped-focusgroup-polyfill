@@ -84,12 +84,12 @@ const isFocusable = (el: Element): el is HTMLElement => {
   if (!(el instanceof HTMLElement)) return false;
   if ((el as HTMLInputElement).disabled || el.hidden || el.closest('[inert]')) return false;
   if (el.offsetParent === null) return false;
-  
+
   const style = getComputedStyle(el);
   if (style.display === 'none' || style.visibility === 'hidden') return false;
 
   if (el.matches('a[href], button, input, select, textarea, [contenteditable="true"]')) return true;
-  
+
   const tabIndex = el.getAttribute('tabindex');
   return tabIndex !== null && parseInt(tabIndex, 10) >= 0;
 };
@@ -120,6 +120,7 @@ const isGenericElement = (el: Element): el is HTMLElement => {
 export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
   const groups = new WeakMap<HTMLElement, GroupState>();
   const originalAttributes = new WeakMap<HTMLElement, OriginalAttributes>();
+  const popoverListeners = new WeakMap<HTMLElement, () => void>();
   let mutationObserver: MutationObserver | null = null;
   let isTabbing = false;
   let debug = false;
@@ -186,9 +187,9 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
 
     const navKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
     if (!navKeys.includes(e.key)) return;
-    
+
     e.preventDefault();
-    
+
     if (state.tokens.grid) {
       navigateGrid(state, e.key);
     } else {
@@ -204,14 +205,14 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
     if (!container) return;
     const state = groups.get(container);
     if (!state) return;
-    
+
     const itemIndex = state.items.indexOf(target);
 
     if (isTabbing) {
       isTabbing = false;
       const memoryEl = state.memory?.deref();
       if (state.tokens.memory && memoryEl && state.items.includes(memoryEl) && target !== memoryEl) {
-        if(debug) console.log('[SFP] Tab detected. Restoring focus to memory:', memoryEl);
+        if (debug) console.log('[SFP] Tab detected. Restoring focus to memory:', memoryEl);
         memoryEl.focus();
         return;
       }
@@ -266,30 +267,59 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
     const state: Partial<GroupState> = { element: container, rebuildScheduled: false };
     groups.set(container, state as GroupState);
     scheduleRebuild(state as GroupState);
+
+    // Handle popover toggle to rebuild when popover opens
+    const popover = container.hasAttribute('popover')
+      ? container
+      : container.closest('[popover]') as HTMLElement | null;
+    if (popover) {
+      if (debug) console.log('[SFP] Found popover for group:', popover, 'container:', container);
+      const handleToggle = (e: Event) => {
+        if (debug) console.log('[SFP] Popover toggle event:', (e as ToggleEvent).newState);
+        if ((e as ToggleEvent).newState === 'open') {
+          // Double rAF ensures the popover is fully painted and offsetParent is updated
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const groupState = groups.get(container);
+              if (debug) console.log('[SFP] Rebuilding popover group, state exists:', !!groupState);
+              if (groupState) {
+                rebuild(groupState);
+                if (debug) console.log('[SFP] After popover rebuild, items:', groupState.items?.length);
+              }
+            });
+          });
+        }
+      };
+      popover.addEventListener('toggle', handleToggle);
+      popoverListeners.set(container, () => popover.removeEventListener('toggle', handleToggle));
+    }
   }
 
   function unregister(container: HTMLElement): void {
     const state = groups.get(container);
     if (!state) return;
     if (debug) console.log('[SFP] Unregistering group:', container);
+    // Clean up popover listener
+    popoverListeners.get(container)?.();
+    popoverListeners.delete(container);
     (state.items || []).forEach(restoreOriginalAttributes);
     restoreOriginalAttributes(container);
     groups.delete(container);
   }
-  
+
   function scheduleRebuild(state: GroupState): void {
     if (state.rebuildScheduled) return;
     state.rebuildScheduled = true;
     requestAnimationFrame(() => {
-        rebuild(state);
-        state.rebuildScheduled = false;
+      rebuild(state);
+      state.rebuildScheduled = false;
     });
   }
 
   function rebuild(state: GroupState): void {
     const container = state.element;
     if (debug) console.log('[SFP] Rebuilding group:', container);
-    
+
     const tokens = (container.getAttribute('focusgroup') || '').split(/\s+/).filter(Boolean);
     state.tokens = {
       behavior: (tokens[0] as BehaviorToken) || 'unknown',
@@ -307,10 +337,10 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
       state.items = [];
       return;
     }
-    
+
     const oldActiveElement = state.activeIndex > -1 ? state.items[state.activeIndex] : null;
     (state.items || []).forEach(restoreOriginalAttributes);
-    
+
     state.items = discoverItems(container, state.tokens.shadowInclusive);
     state.items.forEach(saveOriginalAttributes);
 
@@ -319,14 +349,14 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
     } else {
       const memoryEl = state.memory?.deref();
       if (state.tokens.memory && memoryEl && state.items.includes(memoryEl)) {
-          state.activeIndex = state.items.indexOf(memoryEl);
+        state.activeIndex = state.items.indexOf(memoryEl);
       } else {
-          state.activeIndex = state.items.length > 0 ? 0 : -1;
+        state.activeIndex = state.items.length > 0 ? 0 : -1;
       }
     }
 
     if (state.tokens.grid) buildGrid(state);
-    
+
     applyRovingTabindex(state);
     if (autoRoles) applyAriaRoles(state);
 
@@ -357,17 +387,17 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
     }
     return items;
   }
-  
+
   function buildGrid(state: GroupState): void {
     if (!state.items.length) { state.gridItems = []; return; }
     const itemRects = state.items.map(item => ({ el: item, rect: item.getBoundingClientRect() }));
     itemRects.sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
-    
+
     const rows: HTMLElement[][] = [];
     if (itemRects.length > 0) {
       let currentRow = [itemRects[0].el];
       for (let i = 1; i < itemRects.length; i++) {
-        if (Math.abs(itemRects[i].rect.top - itemRects[i-1].rect.top) > itemRects[i-1].rect.height / 2) {
+        if (Math.abs(itemRects[i].rect.top - itemRects[i - 1].rect.top) > itemRects[i - 1].rect.height / 2) {
           rows.push(currentRow);
           currentRow = [];
         }
@@ -395,19 +425,19 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
 
     const lastIndex = state.items.length - 1;
     const { inline, block, wrap } = state.tokens;
-    
+
     const style = getComputedStyle(state.element);
     const isRTL = style.direction === 'rtl';
     const isVertical = style.writingMode.startsWith('vertical');
-    
+
     let horizontal = false;
     let forward = false;
 
     switch (key) {
       case 'ArrowRight': horizontal = true; forward = !isRTL; break;
-      case 'ArrowLeft':  horizontal = true; forward = isRTL; break;
-      case 'ArrowDown':  horizontal = false; forward = !isVertical; break; // Assumes horizontal-tb or vertical-rl
-      case 'ArrowUp':    horizontal = false; forward = isVertical; break;
+      case 'ArrowLeft': horizontal = true; forward = isRTL; break;
+      case 'ArrowDown': horizontal = false; forward = !isVertical; break; // Assumes horizontal-tb or vertical-rl
+      case 'ArrowUp': horizontal = false; forward = isVertical; break;
       case 'Home': nextIndex = 0; break;
       case 'End': nextIndex = lastIndex; break;
     }
@@ -425,14 +455,14 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
     }
     focusItemByIndex(state, nextIndex);
   }
-  
+
   function navigateGrid(state: GroupState, key: string): void {
     let { row, col } = state.gridPosition;
     if (row === -1 || col === -1) return;
 
     let { rowWrap, colWrap, rowFlow, colFlow, wrap } = state.tokens;
     if (wrap) rowWrap = colWrap = true;
-    
+
     const maxRow = state.gridItems.length - 1;
 
     switch (key) {
@@ -443,7 +473,7 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
       case 'Home': col = 0; break;
       case 'End': col = state.gridItems[row].length - 1; break;
     }
-    
+
     const maxCol = (state.gridItems[row]?.length ?? 0) - 1;
 
     if (col < 0) {
@@ -464,17 +494,17 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
 
     row = Math.max(0, Math.min(row, state.gridItems.length - 1));
     col = Math.max(0, Math.min(col, state.gridItems[row].length - 1));
-    
+
     const newIndex = state.items.indexOf(state.gridItems[row][col]);
     if (newIndex > -1) {
       state.gridPosition = { row, col };
       focusItemByIndex(state, newIndex);
     }
   }
-  
+
   function focusItemByIndex(state: GroupState, index: number): void {
     if (index === state.activeIndex || index < 0 || index >= state.items.length) return;
-    if(debug) console.log(`[SFP] Moving focus from index ${state.activeIndex} to ${index}`);
+    if (debug) console.log(`[SFP] Moving focus from index ${state.activeIndex} to ${index}`);
     state.activeIndex = index;
     applyRovingTabindex(state);
     state.items[index].focus();
@@ -491,7 +521,7 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
   function applyAriaRoles(state: GroupState): void {
     const roleInfo = ROLE_MAP[state.tokens.behavior];
     if (!roleInfo) return;
-    
+
     const container = state.element;
     saveOriginalAttributes(container);
     if (isGenericElement(container) && !originalAttributes.get(container)?.role) {
@@ -501,7 +531,7 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
     if (roleInfo.child) {
       state.items.forEach(item => {
         if (!originalAttributes.get(item)?.role) {
-           item.setAttribute('role', roleInfo.child!);
+          item.setAttribute('role', roleInfo.child!);
         }
       });
     }
@@ -519,7 +549,7 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
   function restoreOriginalAttributes(el: HTMLElement): void {
     if (!originalAttributes.has(el)) return;
     const original = originalAttributes.get(el)!;
-    
+
     if (original.tabindex === null) el.removeAttribute('tabindex');
     else el.setAttribute('tabindex', original.tabindex);
 
@@ -527,39 +557,39 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
       if (original.role === null) el.removeAttribute('role');
       else el.setAttribute('role', original.role);
     }
-    
+
     originalAttributes.delete(el);
   }
 
   // --- Helpers ---
   function findGroupForElement(el: Element | null, stopAt: HTMLElement | null = null): HTMLElement | null {
     let current = el;
-    while(current && current !== stopAt) {
+    while (current && current !== stopAt) {
       if (current instanceof HTMLElement && groups.has(current)) return current;
       current = current.parentElement || (current.getRootNode() as ShadowRoot)?.host || null;
     }
     return null;
   }
-  
+
   function findAncestorWithAttr(el: HTMLElement, attr: string, value: string, stopAt: HTMLElement): HTMLElement | null {
     let current = el.parentElement;
-    while(current && current !== stopAt) {
+    while (current && current !== stopAt) {
       if (current.getAttribute(attr) === value) return current;
       current = current.parentElement;
     }
     return null;
   }
-  
+
   function dispatchCustomEvent(target: HTMLElement, name: string, detail: object): void {
     target.dispatchEvent(new CustomEvent(`scopedfocus:${name}`, { bubbles: true, composed: true, detail }));
   }
-  
+
   // --- Public API ---
   function getGroupFor(el: Element): GroupAPI | null {
     const container = findGroupForElement(el);
     if (!container) return null;
     const state = groups.get(container)!;
-    
+
     return {
       element: container,
       get items() { return [...state.items]; },
@@ -588,7 +618,7 @@ export const ScopedFocusPolyfill: ScopedFocusPolyfillAPI = (() => {
 // --- Expose to window and auto-install ---
 if (typeof window !== 'undefined') {
   window.ScopedFocusPolyfill = ScopedFocusPolyfill;
-  
+
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     ScopedFocusPolyfill.install();
   } else {

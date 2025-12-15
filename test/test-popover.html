@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Focusgroup Popover Test</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 2rem;
+      background: #1a1a2e;
+      color: #eee;
+    }
+
+    h1 {
+      color: #00d9ff;
+      margin-bottom: 0.5rem;
+    }
+
+    h2 {
+      color: #888;
+      font-weight: normal;
+      margin-top: 0;
+    }
+
+    .test-section {
+      background: #16213e;
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin: 1.5rem 0;
+    }
+
+    button {
+      background: #0f3460;
+      color: #fff;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #1a4a7a;
+    }
+
+    button:focus {
+      outline: 2px solid #00d9ff;
+      outline-offset: 2px;
+    }
+
+    [popover] {
+      background: #0f3460;
+      border: 2px solid #00d9ff;
+      border-radius: 12px;
+      padding: 1rem;
+      color: #fff;
+      min-width: 200px;
+    }
+
+    [popover]::backdrop {
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    .menu-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      margin: 0.25rem 0;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+    }
+
+    .menu-item:hover {
+      background: #1a4a7a;
+    }
+
+    .menu-item:focus {
+      background: #00d9ff;
+      color: #000;
+      outline: none;
+    }
+
+    .status {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #0d1b2a;
+      border-radius: 8px;
+      font-family: monospace;
+    }
+
+    .pass {
+      color: #4ade80;
+    }
+
+    .instructions {
+      background: #1e3a5f;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Focusgroup Polyfill - Popover Test</h1>
+  <h2>Testing automatic rebuild on popover open</h2>
+
+  <div class="test-section">
+    <div class="instructions">
+      <strong>Test Instructions:</strong>
+      <ol>
+        <li>Click "Open Popover Menu" button</li>
+        <li>Press Tab to focus the first menu item</li>
+        <li>Use <kbd>↑</kbd> / <kbd>↓</kbd> arrow keys to navigate</li>
+        <li>Verify focus moves between menu items</li>
+      </ol>
+      <p><strong>Expected:</strong> Arrow keys should work immediately without any manual workaround.</p>
+    </div>
+
+    <button popovertarget="test-popover">Open Popover Menu</button>
+
+    <div id="test-popover" popover="auto">
+      <nav focusgroup="menu wrap">
+        <button class="menu-item">🏠 Home</button>
+        <button class="menu-item">📝 Edit</button>
+        <button class="menu-item">💾 Save</button>
+        <button class="menu-item">🗑️ Delete</button>
+      </nav>
+    </div>
+
+    <div class="status" id="status">
+      Status: Waiting for test...
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h3>Test 2: Focusgroup AS the Popover</h3>
+    <div class="instructions">
+      <p>The focusgroup attribute is directly on the popover element itself.</p>
+    </div>
+
+    <button popovertarget="test-popover-2">Open Direct Popover</button>
+
+    <div id="test-popover-2" popover="auto" focusgroup="menu wrap">
+      <button class="menu-item">🔵 Option A</button>
+      <button class="menu-item">🟢 Option B</button>
+      <button class="menu-item">🔴 Option C</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ScopedFocusPolyfill } from './dist/esm/development/index.js';
+    window.ScopedFocusPolyfill = ScopedFocusPolyfill; // Expose for debugging
+
+    // Install with debug mode
+    ScopedFocusPolyfill.install({ force: true, debug: true });
+
+    const status = document.getElementById('status');
+    const popover = document.getElementById('test-popover');
+    const nav = popover.querySelector('nav');
+
+    // Track navigation events
+    let navigationCount = 0;
+    nav.addEventListener('scopedfocus:change', (e) => {
+      navigationCount++;
+      status.innerHTML = `<span class="pass">✓ Navigation working!</span> Focus moved to: ${e.detail.relatedTarget.textContent} (${navigationCount} moves)`;
+    });
+
+    popover.addEventListener('beforetoggle', (e) => {
+      if (e.newState === 'open') {
+        status.textContent = 'Status: Popover opened. Try arrow key navigation...';
+      }
+    });
+  </script>
+</body>
+
+</html>
