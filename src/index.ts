@@ -2,14 +2,12 @@
  * @license
  * Scoped Focusgroup Polyfill - The Complete TypeScript Implementation
  *
- * Copyright (c) 2023-2024
  *
  * This polyfill provides a complete and robust implementation of the Open UI
  * Scoped Focusgroup proposal, including full behavioral and semantic features.
  * https://open-ui.org/components/scoped-focusgroup.explainer/
  *
- * @version 2.0.0
- * @author [Your Name/Organization]
+ * @version 0.0.2
  */
 
 // --- Type Definitions ---
