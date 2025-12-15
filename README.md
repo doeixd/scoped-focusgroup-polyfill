@@ -1,5 +1,4 @@
-
-[![npm version](https://badge.fury.io/js/@doeixd/scoped-focusgroup-polyfill.svg)](https://badge.fury.io/js/@doeixd/scoped-focusgroup-polyfill)
+[![npm version](https://badge.fury.io/js/@doeixd%2Fscoped-focusgroup-polyfill.svg)](https://badge.fury.io/js/@doeixd%2Fscoped-focusgroup-polyfill)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 # Scoped Focusgroup Polyfill
